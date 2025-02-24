@@ -1,8 +1,5 @@
 streamlit
-matplotlib
-seaborn
-pandas
 numpy
-scipy
+joblib
+matplotlib
 scikit-learn
--e .
