@@ -1,78 +1,39 @@
 import streamlit as st
-import pandas as pd
+import joblib
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# Load dataset
-st.title("CO2 Emission Prediction App 🚗💨")
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+# Load trained model and encoders
+model = joblib.load("co2_model.pkl")
+le_make = joblib.load("make_encoder.pkl")
+le_model = joblib.load("model_encoder.pkl")
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
+# Streamlit UI
+st.title("CO2 Emissions Prediction App🚗💨")
 
-    # Show dataset
-    st.write("### Preview of Dataset")
-    st.write(df.head())
 
-    # Check for column names
-    st.write("### Column Names")
-    st.write(df.columns.tolist())
+# User input fields
+make = st.selectbox("Select Car Make", le_make.classes_)
+model_name = st.selectbox("Select Car Model", le_model.classes_)
+engine_size = st.number_input("Engine Size (L)", min_value=0.1, max_value=10.0, step=0.1)
+cylinders = st.number_input("Number of Cylinders", min_value=2, max_value=16, step=1)
+fuel_consumption_comb = st.number_input("Fuel Consumption (Combined) (L/100 km)", min_value=1.0, max_value=30.0, step=0.1)
+fuel_consumption_city = st.number_input("Fuel Consumption (City) (L/100 km)", min_value=1.0, max_value=30.0, step=0.1)
+fuel_consumption_hwy = st.number_input("Fuel Consumption (Highway) (L/100 km)", min_value=1.0, max_value=30.0, step=0.1)
 
-    # Handling categorical variables
-    categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
-    encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-    
-    # Drop rows with missing values
-    df = df.dropna()
+# Prediction function
+def predict_co2_emissions(make, model_name, engine_size, cylinders, fuel_consumption_comb, fuel_consumption_city, fuel_consumption_hwy):
+    # Encode categorical features
+    make_encoded = le_make.transform([make])[0]
+    model_encoded = le_model.transform([model_name])[0]
 
-    if "co2_emissions" not in df.columns:
-        st.error("❌ Column 'co2_emissions' not found in dataset! Please check your file.")
-    else:
-        X = df.drop(columns=["co2_emissions"])  # Features
-        y = df["co2_emissions"]  # Target
+    # Create input array
+    input_data = np.array([[make_encoded, model_encoded, engine_size, cylinders, fuel_consumption_comb, fuel_consumption_city, fuel_consumption_hwy]])
 
-        # Encode categorical features
-        X_encoded = pd.get_dummies(X, columns=categorical_cols)
+    # Make prediction
+    prediction = model.predict(input_data)
+    return prediction[0]
 
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(X_encoded, y, test_size=0.2, random_state=42)
-
-        # Train Random Forest model
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
-        model.fit(X_train, y_train)
-
-        # Predictions
-        y_pred = model.predict(X_test)
-
-        # Model evaluation
-        st.write("### Model Performance")
-        st.write(f"Mean Absolute Error: {mean_absolute_error(y_test, y_pred):.2f}")
-        st.write(f"Mean Squared Error: {mean_squared_error(y_test, y_pred):.2f}")
-        st.write(f"R² Score: {r2_score(y_test, y_pred):.2f}")
-
-        # Feature importance
-        feature_importances = pd.Series(model.feature_importances_, index=X_train.columns)
-        st.write("### Feature Importance")
-        st.bar_chart(feature_importances.sort_values(ascending=False))
-
-        # User Input for Prediction
-        st.write("## Predict CO2 Emission")
-        input_data = {}
-        for col in X.columns:
-            input_data[col] = st.text_input(f"Enter {col}", "")
-
-        if st.button("Predict"):
-            input_df = pd.DataFrame([input_data])
-
-            # Encode input data
-            input_encoded = pd.get_dummies(input_df)
-            input_encoded = input_encoded.reindex(columns=X_train.columns, fill_value=0)
-
-            # Prediction
-            prediction = model.predict(input_encoded)[0]
-            st.success(f"Predicted CO2 Emission: {prediction:.2f} g/km")
+# Predict button
+if st.button("Predict CO2 Emissions"):
+    prediction = predict_co2_emissions(make, model_name, engine_size, cylinders, fuel_consumption_comb, fuel_consumption_city, fuel_consumption_hwy)
+    st.success(f"Predicted CO2 Emissions: {prediction:.2f} g/km")
